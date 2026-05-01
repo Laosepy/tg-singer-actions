@@ -1,44 +1,108 @@
 on:
   schedule:
-    - cron: '30 02 * * *'
+    - cron: '30 02 * * *'                # 每天执行（原有）
+    - cron: '27 14 2,7,12,17,22,27 * *' # 每月特定日期 A
+    - cron: '27 13 5,10,15,20,25,30,31 * *' # 每月特定日期 B
   workflow_dispatch:
+
 permissions:
   actions: write
   contents: write
+
 jobs:
+  # ------------------------ 每天执行的任务 ------------------------
   sign-job:
-    name: sign-job-name
+    name: 每日任务
+    # 只在每天定时触发，或手动触发时运行
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '30 02 * * *'
     runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
-    - uses: actions/setup-python@v6
-      with:
-        python-version: '3.13'
-    - name: install tg-signer
-      run: |
-        pip3 install tg-signer
-    - name: sign
-      env:
-        SESSION_STRING: ${{ secrets.SESSION_STRING }}
-        TASK_MAP: ${{ secrets.TASK_MAP }}
-      run: |
-        echo "$TASK_MAP" | jq -r 'to_entries[] | "\(.key)\t\(.value | tojson)"' | while IFS=$'\t' read -r key value_json; do
-            task_path=".signer/signs/${key}"
-            mkdir -p ${task_path}
-            config_name="${task_path}/config.json"
-            echo "$value_json" | jq . > "$config_name"
-            # 避免隐私信息输出，若想输出日志则删除 `> /dev/null 2>&1`
-            tg-signer --session-string "$SESSION_STRING" run-once ${key} > /dev/null 2>&1
-        done
-    - name: 拉取代码
-      uses: actions/checkout@v4
-      with:
-        persist-credentials: true
-        fetch-depth: 0
-    - name: 自动续命Actions(防止60天禁用action)
-      run: |
-        git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
-        git commit --allow-empty -m "auto keep actions alive (no code change)"
-        git push origin main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: install tg-signer
+        run: pip3 install tg-signer
+      - name: sign
+        env:
+          SESSION_STRING: ${{ secrets.SESSION_STRING }}
+          TASK_MAP: ${{ secrets.TASK_MAP }}
+        run: |
+          echo "$TASK_MAP" | jq -r 'to_entries[] | "\(.key)\t\(.value | tojson)"' | while IFS=$'\t' read -r key value_json; do
+              task_path=".signer/signs/${key}"
+              mkdir -p ${task_path}
+              config_name="${task_path}/config.json"
+              echo "$value_json" | jq . > "$config_name"
+              tg-signer --session-string "$SESSION_STRING" run-once ${key} > /dev/null 2>&1
+          done
+
+  # ------------------------ 每月第1组日期任务 ------------------------
+  sign-job-a:
+    name: 月任务A(2,7,12,17,22,27)
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '27 14 2,7,12,17,22,27 * *'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: install tg-signer
+        run: pip3 install tg-signer
+      - name: sign
+        env:
+          SESSION_STRING: ${{ secrets.SESSION_STRING }}
+          TASK_MAP: ${{ secrets.TASK_MAP_A }}   # ← 新 secret
+        run: |
+          echo "$TASK_MAP" | jq -r 'to_entries[] | "\(.key)\t\(.value | tojson)"' | while IFS=$'\t' read -r key value_json; do
+              task_path=".signer/signs/${key}"
+              mkdir -p ${task_path}
+              config_name="${task_path}/config.json"
+              echo "$value_json" | jq . > "$config_name"
+              tg-signer --session-string "$SESSION_STRING" run-once ${key} > /dev/null 2>&1
+          done
+
+  # ------------------------ 每月第2组日期任务 ------------------------
+  sign-job-b:
+    name: 月任务B(5,10,15,20,25,30,31)
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '27 13 5,10,15,20,25,30,31 * *'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: install tg-signer
+        run: pip3 install tg-signer
+      - name: sign
+        env:
+          SESSION_STRING: ${{ secrets.SESSION_STRING }}
+          TASK_MAP: ${{ secrets.TASK_MAP_B }}   # ← 新 secret
+        run: |
+          echo "$TASK_MAP" | jq -r 'to_entries[] | "\(.key)\t\(.value | tojson)"' | while IFS=$'\t' read -r key value_json; do
+              task_path=".signer/signs/${key}"
+              mkdir -p ${task_path}
+              config_name="${task_path}/config.json"
+              echo "$value_json" | jq . > "$config_name"
+              tg-signer --session-string "$SESSION_STRING" run-once ${key} > /dev/null 2>&1
+          done
+
+  # ------------------------ 自动续命（任选一个 job 执行即可，这里挂在每日任务后）-------
+  keep-alive:
+    name: 自动续命Actions
+    needs: sign-job          # 只依赖每日任务就够了，避免重复提交
+    if: always() && (needs.sign-job.result == 'success' || needs.sign-job.result == 'skipped')
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - name: auto keep alive
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "auto keep actions alive (no code change)"
+          git push origin main
