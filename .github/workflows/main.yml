@@ -40,7 +40,7 @@ jobs:
   # ------------------------ 每月第1组日期任务 ------------------------
   sign-job-a:
     name: 月任务A(2,7,12,17,22,27)
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '27 14 2,7,12,17,22,27 * *'
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '27 6 2,7,12,17,22,27 * *'
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -66,7 +66,7 @@ jobs:
   # ------------------------ 每月第2组日期任务 ------------------------
   sign-job-b:
     name: 月任务B(5,10,15,20,25,30,31)
-    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '27 13 5,10,15,20,25,30,31 * *'
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '27 5 5,10,15,20,25,30,31 * *'
     runs-on: ubuntu-22.04
     permissions:
       contents: write
