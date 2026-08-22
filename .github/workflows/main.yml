@@ -1,3 +1,4 @@
+
 on:
   schedule:
     - cron: '30 02 * * *'                # 每天执行（原有）
@@ -29,13 +30,43 @@ jobs:
           SESSION_STRING: ${{ secrets.SESSION_STRING }}
           TASK_MAP: ${{ secrets.TASK_MAP }}
         run: |
+          ##############测试部分
+          set -x  # 打印每条命令
+          echo "=== DEBUG INFO ===" 
+          echo "TASK_MAP is set: $([ -z "$TASK_MAP" ] && echo 'NO' || echo 'YES')"
+          echo "TASK_MAP length: ${#TASK_MAP}"
+          
+          # 验证 JSON 格式
+          if ! echo "$TASK_MAP" | jq empty 2>/dev/null; then
+            echo "ERROR: TASK_MAP 不是有效的 JSON"
+            echo "Content: $TASK_MAP"
+            exit 1
+          fi
+          # 主流程 - 添加错误处理
+          echo "Starting sign process..."
           echo "$TASK_MAP" | jq -r 'to_entries[] | "\(.key)\t\(.value | tojson)"' | while IFS=$'\t' read -r key value_json; do
+              echo "Processing task: $key"
               task_path=".signer/signs/${key}"
               mkdir -p ${task_path}
               config_name="${task_path}/config.json"
-              echo "$value_json" | jq . > "$config_name"
-              tg-signer --session-string "$SESSION_STRING" run-once ${key} > /dev/null 2>&1
+              echo "$value_json" | jq . > "$config_name" || {
+                echo "ERROR: Failed to parse JSON for key: $key"
+                exit 1
+              }
+              tg-signer --session-string "$SESSION_STRING" run-once ${key} > /dev/null 2>&1 || {
+                echo "WARNING: tg-signer failed for task: $key"
+              }
           done
+          echo "Sign process completed"
+          ###########测试结束
+          
+          # echo "$TASK_MAP" | jq -r 'to_entries[] | "\(.key)\t\(.value | tojson)"' | while IFS=$'\t' read -r key value_json; do
+          #     task_path=".signer/signs/${key}"
+          #     mkdir -p ${task_path}
+          #     config_name="${task_path}/config.json"
+          #     echo "$value_json" | jq . > "$config_name"
+          #     tg-signer --session-string "$SESSION_STRING" run-once ${key} > /dev/null 2>&1
+          # done
 
   # ------------------------ 每月第1组日期任务 ------------------------
   sign-job-a:
