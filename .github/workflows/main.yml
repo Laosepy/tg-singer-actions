@@ -44,134 +44,134 @@ jobs:
           SESSION_STRING: ${{ secrets.SESSION_STRING }}
           TASK_MAP: ${{ secrets.TASK_MAP }}
         run: |
-          ##############测试部分
-          echo "=== DEBUG INFO ===" 
-          echo "TASK_MAP is set: $([ -z "$TASK_MAP" ] && echo 'NO' || echo 'YES')"
-          echo "TASK_MAP length: ${#TASK_MAP}"
+          # ##############测试部分
+          # echo "=== DEBUG INFO ===" 
+          # echo "TASK_MAP is set: $([ -z "$TASK_MAP" ] && echo 'NO' || echo 'YES')"
+          # echo "TASK_MAP length: ${#TASK_MAP}"
           
-          # 验证 JSON 格式
-          if ! echo "$TASK_MAP" | jq empty 2>/dev/null; then
-            echo "ERROR: TASK_MAP 不是有效的 JSON"
-            echo "Content: $TASK_MAP"
-            exit 1
-          fi
-          # 主流程 - 添加错误处理
-          echo "Starting sign process..."
-          echo "$TASK_MAP" | jq -r 'to_entries[] | "\(.key)\t\(.value | tojson)"' | while IFS=$'\t' read -r key value_json; do
-              echo "Processing task: $key"
-              task_path=".signer/signs/${key}"
-              mkdir -p ${task_path}
-              config_name="${task_path}/config.json"
-              echo "$value_json" | jq . > "$config_name" || {
-                echo "ERROR: Failed to parse JSON for key: $key"
-                exit 1
-              }
-              echo "Running tg-signer for task: $key"
-              
-          echo "Python version:"
-          python --version
-          
-          echo "tg-signer path:"
-          command -v tg-signer || {
-            echo "::error::tg-signer 不在 PATH 中"
-            exit 127
-          }
-          
-          tg-signer --version || true
-          
-          if [ -z "${SESSION_STRING:-}" ]; then
-            echo "::error::SESSION_STRING 为空"
-            exit 1
-          fi
-          
-          echo "SESSION_STRING length: ${#SESSION_STRING}"
-
-          if tg-signer --session-string "$SESSION_STRING" run-once "$key"; then
-            echo "Task succeeded: $key"
-          else
-            rc=$?
-            echo "::error::tg-signer failed for task: $key, exit code: $rc"
-            exit "$rc"
-          fi
-
-          done
-          echo "Sign process completed"
-          ###########测试结束
-          
+          # # 验证 JSON 格式
+          # if ! echo "$TASK_MAP" | jq empty 2>/dev/null; then
+          #   echo "ERROR: TASK_MAP 不是有效的 JSON"
+          #   echo "Content: $TASK_MAP"
+          #   exit 1
+          # fi
+          # # 主流程 - 添加错误处理
+          # echo "Starting sign process..."
           # echo "$TASK_MAP" | jq -r 'to_entries[] | "\(.key)\t\(.value | tojson)"' | while IFS=$'\t' read -r key value_json; do
+          #     echo "Processing task: $key"
           #     task_path=".signer/signs/${key}"
           #     mkdir -p ${task_path}
           #     config_name="${task_path}/config.json"
-          #     echo "$value_json" | jq . > "$config_name"
-          #     tg-signer --session-string "$SESSION_STRING" run-once ${key} > /dev/null 2>&1
+          #     echo "$value_json" | jq . > "$config_name" || {
+          #       echo "ERROR: Failed to parse JSON for key: $key"
+          #       exit 1
+          #     }
+          #     echo "Running tg-signer for task: $key"
+              
+          # echo "Python version:"
+          # python --version
+          
+          # echo "tg-signer path:"
+          # command -v tg-signer || {
+          #   echo "::error::tg-signer 不在 PATH 中"
+          #   exit 127
+          # }
+          
+          # tg-signer --version || true
+          
+          # if [ -z "${SESSION_STRING:-}" ]; then
+          #   echo "::error::SESSION_STRING 为空"
+          #   exit 1
+          # fi
+          
+          # echo "SESSION_STRING length: ${#SESSION_STRING}"
+
+          # if tg-signer --session-string "$SESSION_STRING" run-once "$key"; then
+          #   echo "Task succeeded: $key"
+          # else
+          #   rc=$?
+          #   echo "::error::tg-signer failed for task: $key, exit code: $rc"
+          #   exit "$rc"
+          # fi
+
           # done
+          # echo "Sign process completed"
+          # ###########测试结束
+          
+          echo "$TASK_MAP" | jq -r 'to_entries[] | "\(.key)\t\(.value | tojson)"' | while IFS=$'\t' read -r key value_json; do
+              task_path=".signer/signs/${key}"
+              mkdir -p ${task_path}
+              config_name="${task_path}/config.json"
+              echo "$value_json" | jq . > "$config_name"
+              tg-signer --session-string "$SESSION_STRING" run-once ${key} > /dev/null 2>&1
+          done
 
-  # # ------------------------ 每月第1组日期任务 ------------------------
-  # sign-job-a:
-  #   name: 月任务A(2,7,12,17,22,27)
-  #   if: github.event_name == 'workflow_dispatch' || github.event.schedule == '27 6 2,7,12,17,22,27 * *'
-  #   runs-on: ubuntu-22.04
-  #   permissions:
-  #     contents: write
-  #   steps:
-  #     - uses: actions/setup-python@v6
-  #       with:
-  #         python-version: '3.13'
-  #     - name: install tg-signer
-  #       run: pip3 install tg-signer
-  #     - name: sign
-  #       env:
-  #         SESSION_STRING: ${{ secrets.SESSION_STRING }}
-  #         TASK_MAP: ${{ secrets.TASK_MAP_A }}   # ← 新 secret
-  #       run: |
-  #         echo "$TASK_MAP" | jq -r 'to_entries[] | "\(.key)\t\(.value | tojson)"' | while IFS=$'\t' read -r key value_json; do
-  #             task_path=".signer/signs/${key}"
-  #             mkdir -p ${task_path}
-  #             config_name="${task_path}/config.json"
-  #             echo "$value_json" | jq . > "$config_name"
-  #             tg-signer --session-string "$SESSION_STRING" run-once ${key} > /dev/null 2>&1
-  #         done
+  # ------------------------ 每月第1组日期任务 ------------------------
+  sign-job-a:
+    name: 月任务A(2,7,12,17,22,27)
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '27 6 2,7,12,17,22,27 * *'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: install tg-signer
+        run: pip3 install tg-signer
+      - name: sign
+        env:
+          SESSION_STRING: ${{ secrets.SESSION_STRING }}
+          TASK_MAP: ${{ secrets.TASK_MAP_A }}   # ← 新 secret
+        run: |
+          echo "$TASK_MAP" | jq -r 'to_entries[] | "\(.key)\t\(.value | tojson)"' | while IFS=$'\t' read -r key value_json; do
+              task_path=".signer/signs/${key}"
+              mkdir -p ${task_path}
+              config_name="${task_path}/config.json"
+              echo "$value_json" | jq . > "$config_name"
+              tg-signer --session-string "$SESSION_STRING" run-once ${key} > /dev/null 2>&1
+          done
 
-  # # ------------------------ 每月第2组日期任务 ------------------------
-  # sign-job-b:
-  #   name: 月任务B(5,10,15,20,25,30,31)
-  #   if: github.event_name == 'workflow_dispatch' || github.event.schedule == '27 4 5,10,15,20,25,30,31 * *'
-  #   runs-on: ubuntu-22.04
-  #   permissions:
-  #     contents: write
-  #   steps:
-  #     - uses: actions/setup-python@v6
-  #       with:
-  #         python-version: '3.13'
-  #     - name: install tg-signer
-  #       run: pip3 install tg-signer
-  #     - name: sign
-  #       env:
-  #         SESSION_STRING: ${{ secrets.SESSION_STRING }}
-  #         TASK_MAP: ${{ secrets.TASK_MAP_B }}   # ← 新 secret
-  #       run: |
-  #         echo "$TASK_MAP" | jq -r 'to_entries[] | "\(.key)\t\(.value | tojson)"' | while IFS=$'\t' read -r key value_json; do
-  #             task_path=".signer/signs/${key}"
-  #             mkdir -p ${task_path}
-  #             config_name="${task_path}/config.json"
-  #             echo "$value_json" | jq . > "$config_name"
-  #             tg-signer --session-string "$SESSION_STRING" run-once ${key} > /dev/null 2>&1
-  #         done
+  # ------------------------ 每月第2组日期任务 ------------------------
+  sign-job-b:
+    name: 月任务B(5,10,15,20,25,30,31)
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '27 4 5,10,15,20,25,30,31 * *'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: install tg-signer
+        run: pip3 install tg-signer
+      - name: sign
+        env:
+          SESSION_STRING: ${{ secrets.SESSION_STRING }}
+          TASK_MAP: ${{ secrets.TASK_MAP_B }}   # ← 新 secret
+        run: |
+          echo "$TASK_MAP" | jq -r 'to_entries[] | "\(.key)\t\(.value | tojson)"' | while IFS=$'\t' read -r key value_json; do
+              task_path=".signer/signs/${key}"
+              mkdir -p ${task_path}
+              config_name="${task_path}/config.json"
+              echo "$value_json" | jq . > "$config_name"
+              tg-signer --session-string "$SESSION_STRING" run-once ${key} > /dev/null 2>&1
+          done
 
-  # # ------------------------ 自动续命（任选一个 job 执行即可，这里挂在每日任务后）-------
-  # keep-alive:
-  #   name: 自动续命Actions
-  #   needs: sign-job          # 只依赖每日任务就够了，避免重复提交
-  #   if: always() && (needs.sign-job.result == 'success' || needs.sign-job.result == 'skipped')
-  #   runs-on: ubuntu-22.04
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         persist-credentials: true
-  #         fetch-depth: 0
-  #     - name: auto keep alive
-  #       run: |
-  #         git config --global user.name "github-actions[bot]"
-  #         git config --global user.email "github-actions[bot]@users.noreply.github.com"
-  #         git commit --allow-empty -m "auto keep actions alive (no code change)"
-          # git push origin main
+  # ------------------------ 自动续命（任选一个 job 执行即可，这里挂在每日任务后）-------
+  keep-alive:
+    name: 自动续命Actions
+    needs: sign-job          # 只依赖每日任务就够了，避免重复提交
+    if: always() && (needs.sign-job.result == 'success' || needs.sign-job.result == 'skipped')
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - name: auto keep alive
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "auto keep actions alive (no code change)"
+          git push origin main
