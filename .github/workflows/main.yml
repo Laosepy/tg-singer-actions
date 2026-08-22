@@ -31,7 +31,6 @@ jobs:
           TASK_MAP: ${{ secrets.TASK_MAP }}
         run: |
           ##############测试部分
-          set -x  # 打印每条命令
           echo "=== DEBUG INFO ===" 
           echo "TASK_MAP is set: $([ -z "$TASK_MAP" ] && echo 'NO' || echo 'YES')"
           echo "TASK_MAP length: ${#TASK_MAP}"
@@ -53,9 +52,34 @@ jobs:
                 echo "ERROR: Failed to parse JSON for key: $key"
                 exit 1
               }
-              tg-signer --session-string "$SESSION_STRING" run-once ${key} > /dev/null 2>&1 || {
-                echo "WARNING: tg-signer failed for task: $key"
-              }
+              echo "Running tg-signer for task: $key"
+              
+          echo "Python version:"
+          python --version
+          
+          echo "tg-signer path:"
+          command -v tg-signer || {
+            echo "::error::tg-signer 不在 PATH 中"
+            exit 127
+          }
+          
+          tg-signer --version || true
+          
+          if [ -z "${SESSION_STRING:-}" ]; then
+            echo "::error::SESSION_STRING 为空"
+            exit 1
+          fi
+          
+          echo "SESSION_STRING length: ${#SESSION_STRING}"
+
+          if tg-signer --session-string "$SESSION_STRING" run-once "$key"; then
+            echo "Task succeeded: $key"
+          else
+            rc=$?
+            echo "::error::tg-signer failed for task: $key, exit code: $rc"
+            exit "$rc"
+          fi
+
           done
           echo "Sign process completed"
           ###########测试结束
