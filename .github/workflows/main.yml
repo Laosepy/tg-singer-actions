@@ -187,11 +187,11 @@ jobs:
   # ------------------------ 自动续命（任选一个 job 执行即可，这里挂在每日任务后）-------
   keep-alive:
     name: 自动续命Actions
-    needs: sign-job          # 只依赖每日任务就够了，避免重复提交
+    needs: sign-job
     if: always() && (needs.sign-job.result == 'success' || needs.sign-job.result == 'skipped')
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v6        # ⬅️ v4 → v6，消除 Node.js 20 弃用警告
+      - uses: actions/checkout@v6
         with:
           persist-credentials: true
           fetch-depth: 0
@@ -202,11 +202,18 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git commit --allow-empty -m "auto keep actions alive (no code change)"
 
-          # 带指数退避的重试推送，应对 GitHub 服务端临时 500 错误
           max_attempts=5
           attempt=1
           delay=2
           while [ $attempt -le $max_attempts ]; do
+            # ⭐ 关键：每次推送前先把本地空提交 rebase 到远程 main 最新之上
+            echo "🔄 Syncing with origin/main (attempt $attempt)..."
+            git fetch origin main
+            if ! git rebase --keep-empty origin/main; then
+              echo "⚠️ rebase 失败，abort 后重试"
+              git rebase --abort || true
+            fi
+
             if git push origin main; then
               echo "✅ Push succeeded on attempt $attempt"
               exit 0
@@ -218,3 +225,4 @@ jobs:
           done
           echo "❌ Push failed after $max_attempts attempts"
           exit 1
+          
