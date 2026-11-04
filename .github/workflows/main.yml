@@ -191,13 +191,30 @@ jobs:
     if: always() && (needs.sign-job.result == 'success' || needs.sign-job.result == 'skipped')
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6        # ⬅️ v4 → v6，消除 Node.js 20 弃用警告
         with:
           persist-credentials: true
           fetch-depth: 0
+
       - name: auto keep alive
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git commit --allow-empty -m "auto keep actions alive (no code change)"
-          git push origin main
+
+          # 带指数退避的重试推送，应对 GitHub 服务端临时 500 错误
+          max_attempts=5
+          attempt=1
+          delay=2
+          while [ $attempt -le $max_attempts ]; do
+            if git push origin main; then
+              echo "✅ Push succeeded on attempt $attempt"
+              exit 0
+            fi
+            echo "⚠️ Push failed on attempt $attempt, retrying in ${delay}s..."
+            sleep $delay
+            attempt=$((attempt + 1))
+            delay=$((delay * 2))
+          done
+          echo "❌ Push failed after $max_attempts attempts"
+          exit 1
